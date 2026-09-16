@@ -19,6 +19,11 @@ test_*.json
 # Uncomment the line below if you prefer downloading sing-box automatically:
 # sing-box.exe
 
+# PyInstaller Build Artifacts
+build/
+dist/
+*.spec
+
 # OS generated files
 Thumbs.db
 ehthumbs.db

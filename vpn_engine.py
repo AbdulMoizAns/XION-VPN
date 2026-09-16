@@ -17,8 +17,29 @@ STATE_CONNECTING = "CONNECTING"
 STATE_CONNECTED = "CONNECTED"
 STATE_ERROR = "ERROR"
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SINGBOX_EXE = os.path.join(BASE_DIR, "sing-box.exe")
+import sys
+
+def get_app_dir() -> str:
+    """Returns directory containing executable or script."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+def get_bundle_dir() -> str:
+    """Returns PyInstaller internal _MEIPASS bundle dir, or app dir."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS
+    return get_app_dir()
+
+BASE_DIR = get_app_dir()
+BUNDLE_DIR = get_bundle_dir()
+
+# Find sing-box.exe in bundle or next to app exe
+if os.path.isfile(os.path.join(BUNDLE_DIR, "sing-box.exe")):
+    SINGBOX_EXE = os.path.join(BUNDLE_DIR, "sing-box.exe")
+else:
+    SINGBOX_EXE = os.path.join(BASE_DIR, "sing-box.exe")
+
 ACTIVE_CONFIG_PATH = os.path.join(BASE_DIR, "active_config.json")
 
 class VpnEngine:

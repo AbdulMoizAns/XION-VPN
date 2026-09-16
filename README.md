@@ -65,11 +65,23 @@ IPv6 Leak: NONE (0%)
 - Windows 10 or Windows 11 (64-bit)
 - Python 3.10+ (Bundled virtual environment automatically set up by launcher)
 
-### Method 1: 1-Click Launch (Recommended)
-Simply double-click **`run.bat`** in the project folder!
-> **Note for Full-System Routing:** Right-click **`run.bat`** and choose **"Run as administrator"** (or click the **"⚡ Enable All Apps (TUN)"** button inside the app) to enable Layer-3 adapter routing for OpenCode, VS Code, and terminal software.
+### Method 1: 1-Click Standalone Executable (No Python Required)
+1. Download or build `dist/XION-VPN-v1.0-Windows-x64.zip`
+2. Extract the folder and double-click **`XION-VPN.exe`** (or `Launch XION VPN.bat`)!
+3. The executable is completely portable and self-contained with bundled `sing-box.exe`, `wintun.dll`, and all dependencies.
 
-### Method 2: Manual Terminal Setup
+### Method 2: 1-Click Script Launch (Developer Mode)
+Simply double-click **`run.bat`** in the project root!
+> **Note for Full-System Routing:** Right-click **`XION-VPN.exe`** or **`run.bat`** and choose **"Run as administrator"** (or click the **"⚡ Enable All Apps (TUN)"** button inside the app) to enable Layer-3 adapter routing for OpenCode, VS Code, and terminal software.
+
+### Method 3: Build Standalone .exe from Source
+Double-click **`build_installer.bat`** or run:
+```powershell
+.\.venv\Scripts\python.exe build_exe.py
+```
+This automatically compiles `dist/XION-VPN/XION-VPN.exe` and creates `dist/XION-VPN-v1.0-Windows-x64.zip`.
+
+### Method 4: Manual Terminal Setup
 ```powershell
 # 1. Clone the repository
 git clone https://github.com/AbdulMoizAns/XION-VPN.git
@@ -85,7 +97,6 @@ pip install -r requirements.txt
 # 4. Launch XION VPN
 python main.py
 ```
-
 ---
 
 ## 📁 Repository Structure
@@ -100,8 +111,10 @@ XION-VPN/
 ├── crypto_tunnel.py     # AES-256-GCM framing for private VPS mode
 ├── server.py            # Standalone private server daemon for Linux VPS
 ├── tunnel_client.py     # SOCKS5-to-TLS client for custom private VPS
-├── wintun.dll           # Layer-3 WireGuard / Wintun network driver
+├── build_exe.py         # Automated PyInstaller distribution builder & zip packager
+├── build_installer.bat  # 1-Click batch script to compile standalone Windows .exe
 ├── run.bat              # 1-Click launcher with auto-venv & elevation support
+├── wintun.dll           # Layer-3 WireGuard / Wintun network driver
 ├── requirements.txt     # Python dependency lockfile
 ├── .gitignore           # Git ignore rules for clean repository hygiene
 └── LICENSE              # MIT License

@@ -24,8 +24,13 @@ def restart_as_admin():
     """Restarts current application with Administrator privileges via UAC prompt."""
     import sys
     if not is_admin():
-        script = os.path.abspath(sys.argv[0])
-        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, f'"{script}"', None, 1)
+        if getattr(sys, "frozen", False):
+            # Running as compiled standalone .exe
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, "", None, 1)
+        else:
+            # Running as Python script
+            script = os.path.abspath(sys.argv[0])
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, f'"{script}"', None, 1)
         sys.exit(0)
 
 def set_env_proxy(enable: bool, host: str = "127.0.0.1", port: int = 10808):
