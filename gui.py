@@ -72,6 +72,18 @@ class XionVpnApp(ctk.CTk):
         self.resizable(False, False)
         self.configure(fg_color=COLOR_BG)
 
+        # Set application window and taskbar icon
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_icon.ico")
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            bundle_icon = os.path.join(sys._MEIPASS, "app_icon.ico")
+            if os.path.isfile(bundle_icon):
+                icon_path = bundle_icon
+        if os.path.isfile(icon_path):
+            try:
+                self.iconbitmap(icon_path)
+            except Exception:
+                pass
+
         self.engine = VpnEngine()
         self.engine.on_state_change = self._on_engine_state_change
         self.stats_tracker = NetworkStatsTracker()

@@ -65,21 +65,30 @@ IPv6 Leak: NONE (0%)
 - Windows 10 or Windows 11 (64-bit)
 - Python 3.10+ (Bundled virtual environment automatically set up by launcher)
 
-### Method 1: 1-Click Standalone Executable (No Python Required)
-1. Download or build `dist/XION-VPN-v1.0-Windows-x64.zip`
-2. Extract the folder and double-click **`XION-VPN.exe`** (or `Launch XION VPN.bat`)!
-3. The executable is completely portable and self-contained with bundled `sing-box.exe`, `wintun.dll`, and all dependencies.
+### Method 1: Professional Windows Setup Wizard (Recommended for Users)
+1. Double-click **`dist/XION-VPN-Setup-v1.0.exe`**
+2. Follow the standard Windows Setup Wizard:
+   - Choose install directory (defaults to `C:\Program Files\XION VPN`)
+   - ✅ **Create Desktop Shortcut**
+   - ✅ **Create Start Menu Shortcut**
+   - ✅ **Launch on Finish**
+   - Registers in Windows **Settings > Apps > Installed Apps** with a full uninstaller!
 
-### Method 2: 1-Click Script Launch (Developer Mode)
+### Method 2: Portable Standalone Executable (No Installation Required)
+1. Download or extract `dist/XION-VPN-v1.0-Windows-x64.zip`
+2. Run **`XION-VPN.exe`** directly from anywhere (USB drive, Desktop, Downloads).
+3. To add Desktop & Start Menu shortcuts for this portable copy, double-click **`create_shortcuts.bat`**!
+
+### Method 3: 1-Click Script Launch (Developer Mode)
 Simply double-click **`run.bat`** in the project root!
 > **Note for Full-System Routing:** Right-click **`XION-VPN.exe`** or **`run.bat`** and choose **"Run as administrator"** (or click the **"⚡ Enable All Apps (TUN)"** button inside the app) to enable Layer-3 adapter routing for OpenCode, VS Code, and terminal software.
 
-### Method 3: Build Standalone .exe from Source
+### Method 4: Build .exe & Setup Wizard from Source
 Double-click **`build_installer.bat`** or run:
 ```powershell
 .\.venv\Scripts\python.exe build_exe.py
 ```
-This automatically compiles `dist/XION-VPN/XION-VPN.exe` and creates `dist/XION-VPN-v1.0-Windows-x64.zip`.
+This automatically bundles the runtime, creates the portable folder and `.zip`, and compiles the Inno Setup Wizard `.exe`.
 
 ### Method 4: Manual Terminal Setup
 ```powershell
@@ -111,8 +120,12 @@ XION-VPN/
 ├── crypto_tunnel.py     # AES-256-GCM framing for private VPS mode
 ├── server.py            # Standalone private server daemon for Linux VPS
 ├── tunnel_client.py     # SOCKS5-to-TLS client for custom private VPS
-├── build_exe.py         # Automated PyInstaller distribution builder & zip packager
-├── build_installer.bat  # 1-Click batch script to compile standalone Windows .exe
+├── installer.iss        # Inno Setup script for Windows Setup Wizard compiler
+├── app_icon.ico         # Multi-resolution cyberpunk neon app & setup icon
+├── build_exe.py         # Automated PyInstaller & Inno Setup release compiler
+├── build_installer.bat  # 1-Click batch script to compile both .exe and Setup wizard
+├── create_shortcuts.bat # 1-Click launcher to pin Desktop & Start Menu shortcuts
+├── create_shortcuts.ps1 # PowerShell shortcut generation automation
 ├── run.bat              # 1-Click launcher with auto-venv & elevation support
 ├── wintun.dll           # Layer-3 WireGuard / Wintun network driver
 ├── requirements.txt     # Python dependency lockfile

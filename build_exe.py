@@ -35,6 +35,7 @@ def build():
     if not os.path.isfile(pyinstaller_exe):
         pyinstaller_exe = "pyinstaller"
 
+    icon_src = os.path.join(BASE_DIR, "app_icon.ico")
     cmd = [
         pyinstaller_exe,
         "--noconfirm",
@@ -44,8 +45,12 @@ def build():
         "--collect-all=customtkinter",
         f"--add-data={wintun_src};.",
         f"--add-data={singbox_src};.",
-        os.path.join(BASE_DIR, "main.py")
     ]
+    if os.path.isfile(icon_src):
+        cmd.append(f"--icon={icon_src}")
+        cmd.append(f"--add-data={icon_src};.")
+
+    cmd.append(os.path.join(BASE_DIR, "main.py"))
 
     print(f"[*] Running PyInstaller...")
     res = subprocess.run(cmd, cwd=BASE_DIR)
@@ -53,7 +58,7 @@ def build():
         print("[-] Build failed during PyInstaller compilation.")
         sys.exit(res.returncode)
 
-    # 3. Post-build: Ensure sing-box.exe and wintun.dll exist directly in output app folder
+    # 3. Post-build: Ensure sing-box.exe, wintun.dll, app_icon.ico exist directly in output app folder
     print("[*] Verifying binary payloads in output directory...")
     target_singbox = os.path.join(OUTPUT_APP_DIR, "sing-box.exe")
     target_wintun = os.path.join(OUTPUT_APP_DIR, "wintun.dll")
@@ -63,6 +68,9 @@ def build():
 
     if not os.path.isfile(target_wintun):
         shutil.copy2(wintun_src, target_wintun)
+
+    if os.path.isfile(icon_src):
+        shutil.copy2(icon_src, os.path.join(OUTPUT_APP_DIR, "app_icon.ico"))
 
     # Copy README and LICENSE to output folder
     for fname in ["README.md", "LICENSE"]:
@@ -85,11 +93,30 @@ def build():
                 rel_path = os.path.relpath(abs_path, DIST_DIR)
                 zf.write(abs_path, rel_path)
 
+    # 6. Inno Setup Compiler (Setup Wizard .exe)
+    setup_exe_path = None
+    iscc_candidates = [
+        shutil.which("iscc"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"),
+        r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        r"C:\Program Files\Inno Setup 6\ISCC.exe",
+    ]
+    iscc_exe = next((p for p in iscc_candidates if p and os.path.isfile(p)), None)
+    iss_file = os.path.join(BASE_DIR, "installer.iss")
+
+    if iscc_exe and os.path.isfile(iss_file):
+        print(f"[*] Compiling Inno Setup Wizard using {iscc_exe}...")
+        iscc_res = subprocess.run([iscc_exe, iss_file], cwd=BASE_DIR)
+        if iscc_res.returncode == 0:
+            setup_exe_path = os.path.join(DIST_DIR, "XION-VPN-Setup-v1.0.exe")
+
     print("=" * 60)
     print(" [+] BUILD SUCCESSFUL!")
     print(f" [+] Executable Folder: {OUTPUT_APP_DIR}")
     print(f" [+] Main Binary:       {os.path.join(OUTPUT_APP_DIR, 'XION-VPN.exe')}")
     print(f" [+] Release Package:   {zip_path}")
+    if setup_exe_path and os.path.isfile(setup_exe_path):
+        print(f" [+] Setup Wizard (.exe): {setup_exe_path}")
     print("=" * 60)
 
 if __name__ == "__main__":
