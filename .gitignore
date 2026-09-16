@@ -1,0 +1,26 @@
+# Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Runtime & Temporary Configuration
+active_config.json
+xion_warp.conf
+test_*.json
+*.log
+
+# Large Binaries (Optional: Keep wintun.dll if desired, sing-box.exe is ~82MB)
+# Uncomment the line below if you prefer downloading sing-box automatically:
+# sing-box.exe
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
