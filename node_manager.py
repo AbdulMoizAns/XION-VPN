@@ -20,25 +20,11 @@ BUILTIN_FAST_NODES = [
         "uri": "vless://cb15cce9-73ed-4928-b38c-462f0732cbe9@217.217.254.126:2053?fp=firefox&pbk=VzRjuHwcY-nLqkEIJS4S1CpButKc90Bh0gDbphyZ0Tw&security=reality&sid=87829de0e2bb82cb&sni=www.cloudflare.com&type=tcp#vless-1260285702"
     },
     {
-        "name": "🇺🇸 United States (Los Angeles)",
-        "country": "United States",
-        "country_code": "US",
-        "city": "Los Angeles",
-        "uri": "vless://23504a34-5216-4e10-86a0-b6a70976f996@192.3.247.109:32132?fp=firefox&pbk=Hv-DNm962AntB7xyaLnaHvui6rOJ092OFOY2E7TqyR0&security=reality&sid=24cbfb05123722&sni=apple.com&type=tcp#vless-1279027821"
-    },
-    {
-        "name": "🇸🇬 Singapore (Singapore)",
+        "name": "🇸🇬 Singapore (Ultra-Fast)",
         "country": "Singapore",
         "country_code": "SG",
         "city": "Singapore",
         "uri": "vless://cb15cce9-73ed-4928-b38c-462f0732cbe9@217.217.254.126:2053?fp=firefox&pbk=VzRjuHwcY-nLqkEIJS4S1CpButKc90Bh0gDbphyZ0Tw&security=reality&sid=87829de0e2bb82cb&sni=www.cloudflare.com&type=tcp#vless-1260285702"
-    },
-    {
-        "name": "🇯🇵 Japan (Tokyo)",
-        "country": "Japan",
-        "country_code": "JP",
-        "city": "Tokyo",
-        "uri": "vless://a16a3336-c9ab-489f-9b85-c973f5e2cfa4@137.220.221.179:443?fp=qq&security=none&type=tcp#vless-702719096"
     },
     {
         "name": "🇩🇪 Germany (Frankfurt)",
@@ -48,18 +34,25 @@ BUILTIN_FAST_NODES = [
         "uri": "vless://969bcce0-de8a-4b02-8cf8-d00d2d2ca7a5@93.152.217.41:40443?fp=chrome&pbk=VG-FwQBMFzPcemJ_JqtkbO-2WKLmQp2h0CmAj-DfLkA&security=reality&sid=5b97&sni=deepl.com&type=raw#vless-685581276"
     },
     {
+        "name": "🇨🇦 Canada (Montreal - North America)",
+        "country": "Canada",
+        "country_code": "CA",
+        "city": "Montreal",
+        "uri": "vless://716426fa-bcb7-4eb9-b460-36399ebf740d@lizca2.footballfantasyforum.com:443?security=tls&type=tcp#vless-829563781"
+    },
+    {
+        "name": "🇯🇵 Japan (Tokyo)",
+        "country": "Japan",
+        "country_code": "JP",
+        "city": "Tokyo",
+        "uri": "vless://a16a3336-c9ab-489f-9b85-c973f5e2cfa4@137.220.221.179:443?fp=qq&security=none&type=tcp#vless-702719096"
+    },
+    {
         "name": "🇫🇷 France (Paris)",
         "country": "France",
         "country_code": "FR",
         "city": "Paris",
         "uri": "vless://9f0baff8-bdee-4de9-9515-bcc4932b41fa@194.76.154.31:40443?fp=chrome&path=%2F+&pbk=MN6QjUHDUXyteMdR-cDna89fq4X3qgQhLnNqTtRUbBQ&security=reality&sid=a8ae&sni=deepl.com&spx=%2F&type=tcp#vless-814233101"
-    },
-    {
-        "name": "🇨🇦 Canada (Montreal)",
-        "country": "Canada",
-        "country_code": "CA",
-        "city": "Montreal",
-        "uri": "vless://716426fa-bcb7-4eb9-b460-36399ebf740d@lizca2.footballfantasyforum.com:443?security=tls&type=tcp#vless-829563781"
     },
     {
         "name": "🇰🇷 South Korea (Seoul)",

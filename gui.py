@@ -622,6 +622,11 @@ class XionVpnApp(ctk.CTk):
         if self.engine.state == STATE_CONNECTED:
             threading.Thread(target=self.engine.disconnect, daemon=True).start()
         elif self.engine.state in (STATE_DISCONNECTED, STATE_ERROR):
+            # If recovering from an error state, ensure proxy is completely clean first
+            if self.engine.state == STATE_ERROR:
+                self.engine.disconnect()
+                time.sleep(0.3)
+
             selected_tab = self.side_tabs.get()
             if selected_tab == "🌐 VPS":
                 host = self.vps_host.get().strip() or "127.0.0.1"
@@ -670,7 +675,7 @@ class XionVpnApp(ctk.CTk):
         elif state == STATE_DISCONNECTED:
             self.power_btn.configure(fg_color="#1E293B", hover_color="#334155", text_color="#38BDF8")
             self.status_title.configure(text="DISCONNECTED", text_color=COLOR_TEXT_MUTED)
-            self.status_subtitle.configure(text="Tap power hub to activate encrypted shield", text_color=COLOR_TEXT_DIM)
+            self.status_subtitle.configure(text=message or "Tap power hub to activate encrypted shield", text_color=COLOR_TEXT_DIM)
             self.duration_label.configure(text="⏱️ 00:00:00")
             self.route_dst_ip.configure(text="Shield Inactive")
             self.route_dst_loc.configure(text="Tap Power to Connect")
@@ -679,8 +684,9 @@ class XionVpnApp(ctk.CTk):
         elif state == STATE_ERROR:
             self.power_btn.configure(fg_color="#7F1D1D", hover_color="#991B1B", text_color="#FCA5A5")
             self.status_title.configure(text="SHIELD HALTED", text_color=COLOR_RED)
-            self.status_subtitle.configure(text=message[:45] if message else "Connection error", text_color=COLOR_RED)
-            messagebox.showerror("VPN Error", message)
+            self.status_subtitle.configure(text=message[:55] if message else "Connection error", text_color=COLOR_RED)
+            self.route_dst_ip.configure(text="Shield Inactive")
+            self.route_dst_loc.configure(text="Tap Power to Retry")
 
     def _start_background_loops(self):
         self._is_running = True

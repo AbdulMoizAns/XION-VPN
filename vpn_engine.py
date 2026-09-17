@@ -58,6 +58,11 @@ class VpnEngine:
         self.kill_switch_blocking = False
         self._user_initiated_disconnect = False
 
+        # Clean slate on startup: clear any lingering processes or proxy locks
+        self._kill_singbox()
+        set_windows_system_proxy(False)
+        set_env_proxy(False)
+
     def set_kill_switch(self, enabled: bool):
         """Enable or disable the VPN Kill Switch."""
         self.kill_switch_enabled = enabled
@@ -70,14 +75,16 @@ class VpnEngine:
     def _start_watchdog(self):
         """Monitors singbox process. If it crashes while Kill Switch is active, blocks internet."""
         def monitor():
+            # Grace period before monitoring begins
+            time.sleep(2.5)
             while self.state == STATE_CONNECTED and self.singbox_process:
-                time.sleep(1.0)
+                time.sleep(1.5)
                 if self.singbox_process and self.singbox_process.poll() is not None:
                     if not self._user_initiated_disconnect:
                         print("[vpn_engine] WARNING: VPN process dropped unexpectedly!")
                         if self.kill_switch_enabled:
                             self.kill_switch_blocking = True
-                            # Point proxy to dead port 127.0.0.1:1 to immediately block all internet access
+                            # Point proxy to dead port 127.0.0.1:1 to immediately block all unencrypted traffic
                             set_windows_system_proxy(True, "127.0.0.1", 1)
                             set_env_proxy(True, "127.0.0.1", 1)
                             self._set_state(STATE_ERROR, "KILL SWITCH ENGAGED! Internet blocked to prevent IP leak.")
@@ -113,7 +120,7 @@ class VpnEngine:
         self._user_initiated_disconnect = False
         self.kill_switch_blocking = False
 
-        # Terminate any existing core
+        # Terminate any lingering core to free ports
         self._kill_singbox()
 
         # Build and write configuration (TUN enabled if Administrator)
@@ -121,22 +128,30 @@ class VpnEngine:
         with open(ACTIVE_CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
 
-        # Launch sing-box in background with no terminal window
+        # Log sing-box output to disk to avoid pipe deadlock on Windows
+        log_path = os.path.join(BASE_DIR, "singbox.log")
+        creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+
         try:
-            creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+            log_out = open(log_path, "w", encoding="utf-8")
             self.singbox_process = subprocess.Popen(
                 [SINGBOX_EXE, "run", "-c", ACTIVE_CONFIG_PATH],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=log_out,
+                stderr=subprocess.STDOUT,
                 creationflags=creationflags
             )
             time.sleep(1.2)
 
             if self.singbox_process.poll() is not None:
-                _, err = self.singbox_process.communicate()
-                err_text = err.decode("utf-8", errors="ignore").strip()
-                
-                # If TUN mode failed (e.g. non-admin, Wintun permissions), fallback immediately to Standard Proxy mode
+                log_out.close()
+                err_text = ""
+                try:
+                    with open(log_path, "r", encoding="utf-8", errors="ignore") as lf:
+                        err_text = lf.read().strip()
+                except Exception:
+                    pass
+
+                # If TUN mode failed, fallback immediately to Standard Proxy mode
                 if admin:
                     print(f"[vpn_engine] TUN mode start failed ({err_text[:60]}). Falling back to Standard Mode...")
                     admin = False
@@ -144,28 +159,34 @@ class VpnEngine:
                     with open(ACTIVE_CONFIG_PATH, "w", encoding="utf-8") as f:
                         json.dump(cfg, f, indent=2)
 
+                    log_out = open(log_path, "w", encoding="utf-8")
                     self.singbox_process = subprocess.Popen(
                         [SINGBOX_EXE, "run", "-c", ACTIVE_CONFIG_PATH],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                        stdout=log_out,
+                        stderr=subprocess.STDOUT,
                         creationflags=creationflags
                     )
                     time.sleep(1.2)
                     if self.singbox_process.poll() is not None:
-                        _, err = self.singbox_process.communicate()
-                        err_text = err.decode("utf-8", errors="ignore").strip()
-                        self._set_state(STATE_ERROR, f"Core failed: {err_text[:80]}")
+                        log_out.close()
+                        self._set_state(STATE_ERROR, f"Core failed: {err_text[-120:] if err_text else 'Unknown startup error'}")
                         return False
                 else:
-                    self._set_state(STATE_ERROR, f"Core failed: {err_text[:80]}")
+                    self._set_state(STATE_ERROR, f"Core failed: {err_text[-120:] if err_text else 'Unknown startup error'}")
                     return False
 
             # Configure Windows System Proxy & Developer Env Proxy (OpenCode, VS Code, Git)
             set_windows_system_proxy(True, "127.0.0.1", 10808)
             set_env_proxy(True, "127.0.0.1", 10808)
 
-            # Quick verification test
-            self._verify_tunnel(timeout=4)
+            # Quick verification test - must actually pass traffic before declaring connected!
+            if not self._verify_tunnel(timeout=4):
+                print(f"[vpn_engine] Tunnel verification failed for {node_name}")
+                set_windows_system_proxy(False)
+                set_env_proxy(False)
+                self._kill_singbox()
+                self._set_state(STATE_ERROR, f"Server {node_name} is unreachable or timed out.")
+                return False
 
             self.active_engine = "singbox_node"
             self.connected_node_name = node_name
@@ -178,12 +199,14 @@ class VpnEngine:
             return True
 
         except Exception as e:
+            set_windows_system_proxy(False)
+            set_env_proxy(False)
+            self._kill_singbox()
             self._set_state(STATE_ERROR, f"Connection error: {e}")
-            self.disconnect()
             return False
 
     def connect_smart_auto(self) -> bool:
-        """Tries fast global nodes sequentially until one connects successfully."""
+        """Tries fast global nodes sequentially until one connects and verifies successfully."""
         self._set_state(STATE_CONNECTING, "Selecting fastest available server...")
         nodes = fetch_live_nodes()
 
@@ -193,13 +216,13 @@ class VpnEngine:
             if not uri or "Auto-Select" in name:
                 continue
 
-            self._set_state(STATE_CONNECTING, f"Testing {name}...")
+            self._set_state(STATE_CONNECTING, f"Connecting to {name}...")
             if self.connect_node(uri, name):
                 return True
 
-        # Fallback to first regular builtin node
-        fallback = BUILTIN_FAST_NODES[1] if len(BUILTIN_FAST_NODES) > 1 else BUILTIN_FAST_NODES[0]
-        return self.connect_node(fallback["uri"], fallback["name"])
+        # If all nodes fail
+        self._set_state(STATE_ERROR, "No responding servers available. Please check internet connection.")
+        return False
 
     def _verify_tunnel(self, timeout: int = 3) -> bool:
         """Verifies if proxy port 10808 is responding and passing HTTP traffic."""
@@ -236,6 +259,7 @@ class VpnEngine:
             return False
 
     def _kill_singbox(self):
+        """Terminates active sing-box instance and kills any orphan processes holding ports."""
         if self.singbox_process:
             try:
                 self.singbox_process.terminate()
@@ -246,6 +270,17 @@ class VpnEngine:
                 except Exception:
                     pass
             self.singbox_process = None
+
+        # Clean up any orphaned sing-box.exe processes to ensure port 10808 is completely free
+        try:
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/F", "/IM", "sing-box.exe"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.run(["pkill", "-9", "-f", "sing-box"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
 
     def disconnect(self):
         """Cleanly disconnects tunnel, terminates processes, and restores Windows proxy."""
