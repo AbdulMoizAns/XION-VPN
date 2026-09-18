@@ -622,39 +622,43 @@ class XionVpnApp(ctk.CTk):
         if self.engine.state == STATE_CONNECTED:
             threading.Thread(target=self.engine.disconnect, daemon=True).start()
         elif self.engine.state in (STATE_DISCONNECTED, STATE_ERROR):
-            # If recovering from an error state, ensure proxy is completely clean first
-            if self.engine.state == STATE_ERROR:
-                self.engine.disconnect()
-                time.sleep(0.3)
-
             selected_tab = self.side_tabs.get()
-            if selected_tab == "🌐 VPS":
-                host = self.vps_host.get().strip() or "127.0.0.1"
-                try:
-                    port = int(self.vps_port.get().strip())
-                except ValueError:
-                    messagebox.showerror("Error", "Invalid port number.")
-                    return
-                password = self.vps_pass.get().strip()
-                threading.Thread(target=lambda: self.engine.connect_xion_server(host, port, password), daemon=True).start()
-            elif selected_tab == "🔗 URI" and self.custom_uri_entry.get().strip().startswith("vless://"):
-                uri = self.custom_uri_entry.get().strip()
-                threading.Thread(target=lambda: self.engine.connect_node(uri, "Custom Node"), daemon=True).start()
-            else:
-                selected_name = self.server_dropdown.get()
-                selected_node = None
-                for n in self.available_nodes:
-                    if n["name"] == selected_name:
-                        selected_node = n
-                        break
 
-                if not selected_node:
-                    selected_node = self.available_nodes[0]
+            def _do_connect():
+                # If recovering from an error state, clean up completely first
+                if self.engine.state == STATE_ERROR:
+                    self.engine.disconnect()
+                    time.sleep(0.5)  # let cleanup settle before reconnecting
 
-                if "Auto-Select" in selected_node["name"]:
-                    threading.Thread(target=self.engine.connect_smart_auto, daemon=True).start()
+                if selected_tab == "🌐 VPS":
+                    host = self.vps_host.get().strip() or "127.0.0.1"
+                    try:
+                        port = int(self.vps_port.get().strip())
+                    except ValueError:
+                        self.safe_after(0, lambda: messagebox.showerror("Error", "Invalid port number."))
+                        return
+                    password = self.vps_pass.get().strip()
+                    self.engine.connect_xion_server(host, port, password)
+                elif selected_tab == "🔗 URI" and self.custom_uri_entry.get().strip().startswith("vless://"):
+                    uri = self.custom_uri_entry.get().strip()
+                    self.engine.connect_node(uri, "Custom Node")
                 else:
-                    threading.Thread(target=lambda: self.engine.connect_node(selected_node["uri"], selected_node["name"]), daemon=True).start()
+                    selected_name = self.server_dropdown.get()
+                    selected_node = None
+                    for n in self.available_nodes:
+                        if n["name"] == selected_name:
+                            selected_node = n
+                            break
+
+                    if not selected_node:
+                        selected_node = self.available_nodes[0]
+
+                    if "Auto-Select" in selected_node["name"]:
+                        self.engine.connect_smart_auto()
+                    else:
+                        self.engine.connect_node(selected_node["uri"], selected_node["name"])
+
+            threading.Thread(target=_do_connect, daemon=True).start()
 
     def _on_engine_state_change(self, state: str, message: str):
         self.safe_after(0, lambda: self._update_ui_state(state, message))

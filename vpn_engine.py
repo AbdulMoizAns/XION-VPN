@@ -58,6 +58,13 @@ class VpnEngine:
         self.kill_switch_blocking = False
         self._user_initiated_disconnect = False
 
+        # Watchdog ID: each new connection gets a unique ID.
+        # The watchdog thread only fires if its ID still matches the current one.
+        self._watchdog_id = 0
+
+        # Log file handle — stored so we can close it before next session
+        self._log_file = None
+
         # Clean slate on startup: clear any lingering processes or proxy locks
         self._kill_singbox()
         set_windows_system_proxy(False)
@@ -73,18 +80,26 @@ class VpnEngine:
             self._set_state(STATE_DISCONNECTED, "Kill Switch released. Internet restored.")
 
     def _start_watchdog(self):
-        """Monitors singbox process. If it crashes while Kill Switch is active, blocks internet."""
+        """Monitors singbox process. If it crashes while Kill Switch is active, blocks internet.
+        Uses a watchdog_id snapshot so any previous zombie watchdog thread is automatically
+        invalidated when a new connection is established."""
+        self._watchdog_id += 1
+        my_id = self._watchdog_id
+
         def monitor():
-            # Grace period before monitoring begins
+            # Grace period before monitoring begins — sing-box needs time to fully start
             time.sleep(2.5)
-            while self.state == STATE_CONNECTED and self.singbox_process:
+            while self._watchdog_id == my_id and self.state == STATE_CONNECTED and self.singbox_process:
                 time.sleep(1.5)
+                # Double-check ID again after sleeping so a disconnect during sleep doesn't false-fire
+                if self._watchdog_id != my_id:
+                    break
                 if self.singbox_process and self.singbox_process.poll() is not None:
-                    if not self._user_initiated_disconnect:
-                        print("[vpn_engine] WARNING: VPN process dropped unexpectedly!")
+                    if not self._user_initiated_disconnect and self._watchdog_id == my_id:
+                        print(f"[vpn_engine] WARNING: VPN process dropped unexpectedly! (watchdog#{my_id})")
                         if self.kill_switch_enabled:
                             self.kill_switch_blocking = True
-                            # Point proxy to dead port 127.0.0.1:1 to immediately block all unencrypted traffic
+                            # Point proxy to dead port 127.0.0.1:1 to block all unencrypted traffic
                             set_windows_system_proxy(True, "127.0.0.1", 1)
                             set_env_proxy(True, "127.0.0.1", 1)
                             self._set_state(STATE_ERROR, "KILL SWITCH ENGAGED! Internet blocked to prevent IP leak.")
@@ -134,6 +149,7 @@ class VpnEngine:
 
         try:
             log_out = open(log_path, "w", encoding="utf-8")
+            self._log_file = log_out  # track so _kill_singbox can close it
             self.singbox_process = subprocess.Popen(
                 [SINGBOX_EXE, "run", "-c", ACTIVE_CONFIG_PATH],
                 stdout=log_out,
@@ -144,6 +160,7 @@ class VpnEngine:
 
             if self.singbox_process.poll() is not None:
                 log_out.close()
+                self._log_file = None
                 err_text = ""
                 try:
                     with open(log_path, "r", encoding="utf-8", errors="ignore") as lf:
@@ -160,6 +177,7 @@ class VpnEngine:
                         json.dump(cfg, f, indent=2)
 
                     log_out = open(log_path, "w", encoding="utf-8")
+                    self._log_file = log_out  # update tracked handle
                     self.singbox_process = subprocess.Popen(
                         [SINGBOX_EXE, "run", "-c", ACTIVE_CONFIG_PATH],
                         stdout=log_out,
@@ -260,6 +278,17 @@ class VpnEngine:
 
     def _kill_singbox(self):
         """Terminates active sing-box instance and kills any orphan processes holding ports."""
+        # Invalidate any running watchdog thread immediately
+        self._watchdog_id += 1
+
+        # Close log file handle first so Windows can overwrite it next session
+        if self._log_file:
+            try:
+                self._log_file.close()
+            except Exception:
+                pass
+            self._log_file = None
+
         if self.singbox_process:
             try:
                 self.singbox_process.terminate()
