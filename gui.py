@@ -35,6 +35,7 @@ from vpn_engine import (
     STATE_ERROR
 )
 from node_manager import fetch_live_nodes, BUILTIN_FAST_NODES
+from tray_manager import TrayManager
 
 # Cyberpunk / Midnight Obsidian Palette
 ctk.set_appearance_mode("Dark")
@@ -106,6 +107,10 @@ class XionVpnApp(ctk.CTk):
         self._start_animation_loop()
         self._start_background_loops()
 
+        # Initialize System Tray Manager (runs in background thread)
+        self.tray_manager = TrayManager(self)
+        self.tray_manager.start()
+
         # Initial background load
         threading.Thread(target=self._initial_load, daemon=True).start()
 
@@ -149,7 +154,7 @@ class XionVpnApp(ctk.CTk):
         brand_frame.pack(fill="x", padx=20, pady=(20, 12))
 
         brand_row = ctk.CTkFrame(brand_frame, fg_color="transparent")
-        brand_row.pack(anchor="w")
+        brand_row.pack(fill="x")
 
         ctk.CTkLabel(
             brand_row,
@@ -164,6 +169,22 @@ class XionVpnApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=24, weight="bold"),
             text_color=COLOR_CYAN
         ).pack(side="left", padx=(4, 8))
+
+        tray_btn = ctk.CTkButton(
+            brand_row,
+            text="🗕 Tray",
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            fg_color=COLOR_SURFACE_ALT,
+            hover_color="#1E2A44",
+            text_color=COLOR_TEXT_MUTED,
+            border_width=1,
+            border_color=COLOR_BORDER,
+            width=64,
+            height=26,
+            corner_radius=6,
+            command=self.hide_to_tray
+        )
+        tray_btn.pack(side="right")
 
         # Mode Badge
         admin = is_admin()
@@ -268,7 +289,28 @@ class XionVpnApp(ctk.CTk):
             text_color=COLOR_TEXT_DIM,
             wraplength=270,
             justify="left"
-        ).pack(anchor="w", padx=(28, 0), pady=(0, 8))
+        ).pack(anchor="w", padx=(28, 0), pady=(0, 6))
+
+        self.minimize_to_tray_var = ctk.BooleanVar(value=True)
+        self.tray_switch = ctk.CTkSwitch(
+            sec_box,
+            text="Minimize to Tray on Close",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            variable=self.minimize_to_tray_var,
+            onvalue=True,
+            offvalue=False,
+            progress_color=COLOR_CYAN
+        )
+        self.tray_switch.pack(anchor="w", pady=(2, 2))
+
+        ctk.CTkLabel(
+            sec_box,
+            text="Closing [X] hides app to tray and keeps VPN running in background.",
+            font=ctk.CTkFont(size=10),
+            text_color=COLOR_TEXT_DIM,
+            wraplength=270,
+            justify="left"
+        ).pack(anchor="w", padx=(28, 0), pady=(0, 6))
 
         sec_badges = ctk.CTkFrame(sec_box, fg_color=COLOR_SURFACE_ALT, corner_radius=8, border_width=1, border_color=COLOR_BORDER)
         sec_badges.pack(fill="x", pady=4)
@@ -692,6 +734,56 @@ class XionVpnApp(ctk.CTk):
             self.route_dst_ip.configure(text="Shield Inactive")
             self.route_dst_loc.configure(text="Tap Power to Retry")
 
+        # Synchronize System Tray tooltip and status
+        if hasattr(self, "tray_manager") and self.tray_manager:
+            self.tray_manager.update_status(state, message)
+
+    def hide_to_tray(self):
+        """Hides the main window to the system tray while keeping the VPN running in background."""
+        self.withdraw()
+        if hasattr(self, "tray_manager") and self.tray_manager:
+            if self.engine.state == STATE_CONNECTED:
+                node = self.engine.connected_node_name or "Secure Node"
+                self.tray_manager.notify(f"Protected via {node}. App minimized to tray.", "XION VPN")
+            else:
+                self.tray_manager.notify("XION VPN is minimized to system tray.", "XION VPN")
+
+    def show_window(self):
+        """Restores and brings the main window to the foreground."""
+        self.deiconify()
+        self.state("normal")
+        self.lift()
+        self.focus_force()
+        try:
+            self.attributes("-topmost", True)
+            self.after(250, lambda: self.attributes("-topmost", False))
+        except Exception:
+            pass
+
+    def toggle_connection_from_tray(self):
+        """Allows toggling connection directly from system tray context menu."""
+        self._toggle_connection()
+
+    def quit_application(self):
+        """Completely terminates VPN connection, tray icon, and application."""
+        self._is_running = False
+        if self.engine.state in (STATE_CONNECTED, STATE_CONNECTING):
+            self.engine.disconnect()
+        if hasattr(self, "tray_manager") and self.tray_manager:
+            self.tray_manager.stop()
+        try:
+            self.quit()
+        except Exception:
+            pass
+        self.destroy()
+
+    def on_close(self):
+        """Handle window close event [X]. If minimize_to_tray is enabled, hide to tray."""
+        if getattr(self, "minimize_to_tray_var", None) and self.minimize_to_tray_var.get():
+            self.hide_to_tray()
+        else:
+            self.quit_application()
+
     def _start_background_loops(self):
         self._is_running = True
         def loop():
@@ -735,12 +827,6 @@ class XionVpnApp(ctk.CTk):
                     break
 
         threading.Thread(target=loop, daemon=True).start()
-
-    def on_close(self):
-        self._is_running = False
-        if self.engine.state == STATE_CONNECTED:
-            self.engine.disconnect()
-        self.destroy()
 
 if __name__ == "__main__":
     app = XionVpnApp()

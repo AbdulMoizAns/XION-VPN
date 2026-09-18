@@ -43,6 +43,9 @@ def build():
         "--windowed",
         "--name=XION-VPN",
         "--collect-all=customtkinter",
+        "--collect-all=pystray",
+        "--hidden-import=pystray",
+        "--hidden-import=pystray._win32",
         f"--add-data={wintun_src};.",
         f"--add-data={singbox_src};.",
     ]
