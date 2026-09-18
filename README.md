@@ -27,6 +27,7 @@
   - **Encrypted DNS-over-HTTPS (DoH):** Direct integration with Cloudflare `1.1.1.1` to hijack and encrypt all DNS requests, preventing ISP logging.
   - **IPv6 Leak Blocker:** Forces strict IPv4 routing to prevent background Windows IPv6 leakage.
   - **Active Watchdog Kill Switch:** Continuously monitors the core tunnel process; instantly severs unencrypted outbound traffic to a dead loopback if the VPN connection ever drops.
+- 🗕 **Silent System Tray & Background Execution:** Minimizing or closing the window hides the application to the Windows Taskbar Notification Area without interrupting the active tunnel. Includes a dynamic tray context menu with live status, 1-click connect/disconnect, and native notifications.
 - 🚀 **Full-System TUN Mode (All Desktop Apps):** Uses bundled `wintun.dll` to establish a Layer-3 virtual network adapter, ensuring developer tools (OpenCode, VS Code, Git, Terminal, Node, Docker) and desktop software are shielded—not just web browsers.
 - 🌍 **Verified Multi-Country Global Nodes:** Ready-to-connect genuine egress endpoints across 🇺🇸 United States, 🇸🇬 Singapore, 🇯🇵 Japan, 🇩🇪 Germany, 🇫🇷 France, 🇨🇦 Canada, and 🇰🇷 South Korea.
 - 🌐 **Private Linux VPS Server Included:** Bundled with `server.py` and `crypto_tunnel.py` to deploy your own personal AES-256-GCM private VPN on any remote Ubuntu/Debian server.
@@ -114,6 +115,7 @@ python main.py
 XION-VPN/
 ├── main.py              # Application entry point & crash guard
 ├── gui.py               # Widescreen Landscape UI & Canvas Animation Engine
+├── tray_manager.py      # Windows System Tray (Taskbar Notification Area) Controller
 ├── vpn_engine.py        # Central tunnel controller, failover & watchdog kill switch
 ├── node_manager.py      # Multi-country node pool & sing-box configuration builder
 ├── sys_utils.py         # WinINet registry proxy, env proxy & live network telemetry
