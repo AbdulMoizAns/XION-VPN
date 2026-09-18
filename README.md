@@ -90,7 +90,7 @@ Double-click **`build_installer.bat`** or run:
 ```
 This automatically bundles the runtime, creates the portable folder and `.zip`, and compiles the Inno Setup Wizard `.exe`.
 
-### Method 4: Manual Terminal Setup
+### Method 5: Manual Terminal Setup
 ```powershell
 # 1. Clone the repository
 git clone https://github.com/AbdulMoizAns/XION-VPN.git
