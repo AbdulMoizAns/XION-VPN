@@ -328,11 +328,11 @@ class XionVpnApp(ctk.CTk):
         self.rotate_switch.pack(anchor="w", pady=(2, 2))
 
         rotate_row = ctk.CTkFrame(sec_box, fg_color="transparent")
-        rotate_row.pack(fill="x", padx=(28, 0), pady=(0, 4))
+        rotate_row.pack(fill="x", padx=(28, 0), pady=(0, 3))
 
         ctk.CTkLabel(
             rotate_row,
-            text="Interval:",
+            text="Every:",
             font=ctk.CTkFont(size=10, weight="bold"),
             text_color=COLOR_TEXT_MUTED
         ).pack(side="left")
@@ -341,7 +341,7 @@ class XionVpnApp(ctk.CTk):
             rotate_row,
             values=["5 Min", "10 Min", "15 Min", "30 Min"],
             font=ctk.CTkFont(size=10, weight="bold"),
-            width=80,
+            width=72,
             height=22,
             fg_color=COLOR_SURFACE_ALT,
             button_color="#1E293B",
@@ -353,12 +353,37 @@ class XionVpnApp(ctk.CTk):
             command=self._on_rotation_interval_change
         )
         self.rotate_interval_menu.set("5 Min")
-        self.rotate_interval_menu.pack(side="left", padx=(6, 0))
+        self.rotate_interval_menu.pack(side="left", padx=(4, 6))
+
+        ctk.CTkLabel(
+            rotate_row,
+            text="Scope:",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color=COLOR_TEXT_MUTED
+        ).pack(side="left")
+
+        self.rotate_scope_menu = ctk.CTkOptionMenu(
+            rotate_row,
+            values=["📍 Same Region", "🌍 Global Hop"],
+            font=ctk.CTkFont(size=10, weight="bold"),
+            width=100,
+            height=22,
+            fg_color=COLOR_SURFACE_ALT,
+            button_color="#1E293B",
+            button_hover_color="#334155",
+            text_color=COLOR_PURPLE,
+            dropdown_fg_color=COLOR_SURFACE_ALT,
+            dropdown_text_color="#FFFFFF",
+            corner_radius=4,
+            command=self._on_rotation_scope_change
+        )
+        self.rotate_scope_menu.set("📍 Same Region")
+        self.rotate_scope_menu.pack(side="left", padx=(4, 0))
 
         ctk.CTkLabel(
             sec_box,
-            text="Automatically cycles between global servers to refresh public IP.",
-            font=ctk.CTkFont(size=10),
+            text="Zero-downtime IP hopping. Same Region keeps you inside the same country.",
+            font=ctk.CTkFont(size=9),
             text_color=COLOR_TEXT_DIM,
             wraplength=270,
             justify="left"
@@ -713,11 +738,16 @@ class XionVpnApp(ctk.CTk):
         except Exception:
             return 300
 
+    def _parse_scope(self, text: str) -> str:
+        """Maps UI scope string to internal engine scope value."""
+        return "same_region" if "Same Region" in text else "global"
+
     def _on_auto_rotate_toggle(self):
         """Toggles dynamic IP rotation and updates UI status."""
         enabled = self.auto_rotate_var.get()
         interval = self._parse_interval(self.rotate_interval_menu.get())
-        self.engine.set_auto_rotate(enabled, interval)
+        scope = self._parse_scope(self.rotate_scope_menu.get())
+        self.engine.set_auto_rotate(enabled, interval, scope=scope)
         if not enabled:
             self.rotation_label.configure(text="🔄 IP: OFF", text_color=COLOR_TEXT_DIM)
         else:
@@ -730,16 +760,23 @@ class XionVpnApp(ctk.CTk):
         """Updates IP rotation interval when user changes dropdown."""
         interval = self._parse_interval(choice)
         enabled = self.auto_rotate_var.get()
-        self.engine.set_auto_rotate(enabled, interval)
+        scope = self._parse_scope(self.rotate_scope_menu.get())
+        self.engine.set_auto_rotate(enabled, interval, scope=scope)
+
+    def _on_rotation_scope_change(self, choice: str):
+        """Updates IP rotation scope ('same_region' or 'global')."""
+        scope = self._parse_scope(choice)
+        self.engine.set_rotation_scope(scope)
 
     def _on_ip_rotated(self, new_node_name: str):
-        """Triggered automatically when IP rotation successfully hops to another server."""
+        """Triggered automatically when IP rotation successfully hops to another server (Zero Downtime)."""
         self.safe_after(0, lambda: self.status_subtitle.configure(
             text=f"Rotated IP: {new_node_name}", text_color=COLOR_PURPLE
         ))
-        self.safe_after(1000, lambda: threading.Thread(target=self._refresh_ip_info, daemon=True).start())
+        self.safe_after(600, lambda: threading.Thread(target=self._refresh_ip_info, daemon=True).start())
         if hasattr(self, "tray_manager") and self.tray_manager:
-            self.tray_manager.notify(f"Dynamic IP Rotated to: {new_node_name}", "XION VPN (IP Refresh)")
+            scope_desc = "Same-Region" if getattr(self.engine, "rotation_scope", "") == "same_region" else "Global"
+            self.tray_manager.notify(f"Zero-Downtime IP Rotated to: {new_node_name} ({scope_desc})", "XION VPN (Seamless IP Hop)")
 
     def _refresh_ip_info(self):
         data = get_public_ip_info()
