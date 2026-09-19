@@ -87,6 +87,7 @@ class XionVpnApp(ctk.CTk):
 
         self.engine = VpnEngine()
         self.engine.on_state_change = self._on_engine_state_change
+        self.engine.on_ip_rotated = self._on_ip_rotated
         self.stats_tracker = NetworkStatsTracker()
 
         # State data
@@ -312,6 +313,57 @@ class XionVpnApp(ctk.CTk):
             justify="left"
         ).pack(anchor="w", padx=(28, 0), pady=(0, 6))
 
+        # Auto-Rotate IP (Dynamic Server Hopping)
+        self.auto_rotate_var = ctk.BooleanVar(value=False)
+        self.rotate_switch = ctk.CTkSwitch(
+            sec_box,
+            text="Auto-Rotate IP (Server Hop)",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            variable=self.auto_rotate_var,
+            onvalue=True,
+            offvalue=False,
+            command=self._on_auto_rotate_toggle,
+            progress_color=COLOR_PURPLE
+        )
+        self.rotate_switch.pack(anchor="w", pady=(2, 2))
+
+        rotate_row = ctk.CTkFrame(sec_box, fg_color="transparent")
+        rotate_row.pack(fill="x", padx=(28, 0), pady=(0, 4))
+
+        ctk.CTkLabel(
+            rotate_row,
+            text="Interval:",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color=COLOR_TEXT_MUTED
+        ).pack(side="left")
+
+        self.rotate_interval_menu = ctk.CTkOptionMenu(
+            rotate_row,
+            values=["5 Min", "10 Min", "15 Min", "30 Min"],
+            font=ctk.CTkFont(size=10, weight="bold"),
+            width=80,
+            height=22,
+            fg_color=COLOR_SURFACE_ALT,
+            button_color="#1E293B",
+            button_hover_color="#334155",
+            text_color=COLOR_CYAN,
+            dropdown_fg_color=COLOR_SURFACE_ALT,
+            dropdown_text_color="#FFFFFF",
+            corner_radius=4,
+            command=self._on_rotation_interval_change
+        )
+        self.rotate_interval_menu.set("5 Min")
+        self.rotate_interval_menu.pack(side="left", padx=(6, 0))
+
+        ctk.CTkLabel(
+            sec_box,
+            text="Automatically cycles between global servers to refresh public IP.",
+            font=ctk.CTkFont(size=10),
+            text_color=COLOR_TEXT_DIM,
+            wraplength=270,
+            justify="left"
+        ).pack(anchor="w", padx=(28, 0), pady=(0, 6))
+
         sec_badges = ctk.CTkFrame(sec_box, fg_color=COLOR_SURFACE_ALT, corner_radius=8, border_width=1, border_color=COLOR_BORDER)
         sec_badges.pack(fill="x", pady=4)
 
@@ -437,19 +489,35 @@ class XionVpnApp(ctk.CTk):
         )
         self.status_subtitle.pack(pady=(0, 4))
 
-        # Session Timer Pill
-        timer_pill = ctk.CTkFrame(hub_container, fg_color=COLOR_SURFACE_ALT, corner_radius=10, border_width=1, border_color=COLOR_BORDER)
-        timer_pill.pack(pady=(2, 0))
+        # Session Timer & Dynamic IP Rotation Pills
+        pill_row = ctk.CTkFrame(hub_container, fg_color="transparent")
+        pill_row.pack(pady=(2, 0))
+
+        timer_pill = ctk.CTkFrame(pill_row, fg_color=COLOR_SURFACE_ALT, corner_radius=10, border_width=1, border_color=COLOR_BORDER)
+        timer_pill.pack(side="left", padx=4)
 
         self.duration_label = ctk.CTkLabel(
             timer_pill,
             text="⏱️ 00:00:00",
             font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
             text_color=COLOR_CYAN,
-            padx=14,
+            padx=12,
             pady=3
         )
         self.duration_label.pack()
+
+        self.rotation_pill = ctk.CTkFrame(pill_row, fg_color=COLOR_SURFACE_ALT, corner_radius=10, border_width=1, border_color=COLOR_BORDER)
+        self.rotation_pill.pack(side="left", padx=4)
+
+        self.rotation_label = ctk.CTkLabel(
+            self.rotation_pill,
+            text="🔄 IP: OFF",
+            font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
+            text_color=COLOR_TEXT_DIM,
+            padx=10,
+            pady=3
+        )
+        self.rotation_label.pack()
 
         # 3. BOTTOM: Telemetry Strip & Real-Time Rolling Waveform Card
         bottom_card = ctk.CTkFrame(main_stage, fg_color=COLOR_SURFACE, corner_radius=14, border_width=1, border_color=COLOR_BORDER)
@@ -637,6 +705,42 @@ class XionVpnApp(ctk.CTk):
         enabled = self.kill_switch_var.get()
         self.engine.set_kill_switch(enabled)
 
+    def _parse_interval(self, text: str) -> int:
+        """Parses UI interval like '5 Min' into seconds."""
+        try:
+            num = int(text.split()[0])
+            return num * 60
+        except Exception:
+            return 300
+
+    def _on_auto_rotate_toggle(self):
+        """Toggles dynamic IP rotation and updates UI status."""
+        enabled = self.auto_rotate_var.get()
+        interval = self._parse_interval(self.rotate_interval_menu.get())
+        self.engine.set_auto_rotate(enabled, interval)
+        if not enabled:
+            self.rotation_label.configure(text="🔄 IP: OFF", text_color=COLOR_TEXT_DIM)
+        else:
+            if self.engine.state == STATE_CONNECTED:
+                self.rotation_label.configure(text=f"🔄 IP: {self.engine.get_rotation_countdown_str()}", text_color=COLOR_PURPLE)
+            else:
+                self.rotation_label.configure(text="🔄 IP: Ready", text_color=COLOR_TEXT_MUTED)
+
+    def _on_rotation_interval_change(self, choice: str):
+        """Updates IP rotation interval when user changes dropdown."""
+        interval = self._parse_interval(choice)
+        enabled = self.auto_rotate_var.get()
+        self.engine.set_auto_rotate(enabled, interval)
+
+    def _on_ip_rotated(self, new_node_name: str):
+        """Triggered automatically when IP rotation successfully hops to another server."""
+        self.safe_after(0, lambda: self.status_subtitle.configure(
+            text=f"Rotated IP: {new_node_name}", text_color=COLOR_PURPLE
+        ))
+        self.safe_after(1000, lambda: threading.Thread(target=self._refresh_ip_info, daemon=True).start())
+        if hasattr(self, "tray_manager") and self.tray_manager:
+            self.tray_manager.notify(f"Dynamic IP Rotated to: {new_node_name}", "XION VPN (IP Refresh)")
+
     def _refresh_ip_info(self):
         data = get_public_ip_info()
         self.current_ip_info = data
@@ -717,12 +821,18 @@ class XionVpnApp(ctk.CTk):
             self.power_btn.configure(fg_color="#78350F", hover_color="#92400E", text_color="#FDE68A")
             self.status_title.configure(text="SHIELDING...", text_color=COLOR_AMBER)
             self.status_subtitle.configure(text=message or "Establishing secure tunnel...", text_color=COLOR_AMBER)
+            if getattr(self.engine, "_is_rotating", False):
+                self.rotation_label.configure(text="🔄 IP: Rotating...", text_color=COLOR_PURPLE)
 
         elif state == STATE_DISCONNECTED:
             self.power_btn.configure(fg_color="#1E293B", hover_color="#334155", text_color="#38BDF8")
             self.status_title.configure(text="DISCONNECTED", text_color=COLOR_TEXT_MUTED)
             self.status_subtitle.configure(text=message or "Tap power hub to activate encrypted shield", text_color=COLOR_TEXT_DIM)
             self.duration_label.configure(text="⏱️ 00:00:00")
+            self.rotation_label.configure(
+                text="🔄 IP: Ready" if self.engine.auto_rotate_enabled else "🔄 IP: OFF",
+                text_color=COLOR_TEXT_DIM
+            )
             self.route_dst_ip.configure(text="Shield Inactive")
             self.route_dst_loc.configure(text="Tap Power to Connect")
             self.safe_after(1000, lambda: threading.Thread(target=self._refresh_ip_info, daemon=True).start())
@@ -731,6 +841,10 @@ class XionVpnApp(ctk.CTk):
             self.power_btn.configure(fg_color="#7F1D1D", hover_color="#991B1B", text_color="#FCA5A5")
             self.status_title.configure(text="SHIELD HALTED", text_color=COLOR_RED)
             self.status_subtitle.configure(text=message[:55] if message else "Connection error", text_color=COLOR_RED)
+            self.rotation_label.configure(
+                text="🔄 IP: Ready" if self.engine.auto_rotate_enabled else "🔄 IP: OFF",
+                text_color=COLOR_TEXT_DIM
+            )
             self.route_dst_ip.configure(text="Shield Inactive")
             self.route_dst_loc.configure(text="Tap Power to Retry")
 
@@ -796,6 +910,11 @@ class XionVpnApp(ctk.CTk):
                     if self.engine.state == STATE_CONNECTED:
                         dur_str = f"⏱️ {self.engine.get_duration_str()}"
                         self.safe_after(0, lambda d=dur_str: self.duration_label.configure(text=d))
+
+                    # Update rotation countdown pill
+                    rot_str = f"🔄 IP: {self.engine.get_rotation_countdown_str()}"
+                    rot_color = COLOR_PURPLE if (self.engine.auto_rotate_enabled and self.engine.state == STATE_CONNECTED) else COLOR_TEXT_DIM
+                    self.safe_after(0, lambda r=rot_str, c=rot_color: self.rotation_label.configure(text=r, text_color=c))
 
                     stats = self.stats_tracker.update()
                     down_kbs = stats['down_speed_kbs']

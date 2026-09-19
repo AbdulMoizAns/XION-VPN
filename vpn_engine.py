@@ -58,6 +58,14 @@ class VpnEngine:
         self.kill_switch_blocking = False
         self._user_initiated_disconnect = False
 
+        # Auto-Rotate IP / Dynamic Server Hopping
+        self.auto_rotate_enabled = False
+        self.auto_rotate_interval = 300  # 5 minutes (300 seconds)
+        self._last_rotation_time = None
+        self._is_rotating = False
+        self.on_ip_rotated = None  # Callback: fn(new_node_name)
+        self._rotation_monitor_started = False
+
         # Watchdog ID: each new connection gets a unique ID.
         # The watchdog thread only fires if its ID still matches the current one.
         self._watchdog_id = 0
@@ -69,6 +77,9 @@ class VpnEngine:
         self._kill_singbox()
         set_windows_system_proxy(False)
         set_env_proxy(False)
+
+        # Start background rotation monitor loop
+        self._start_rotation_monitor()
 
     def set_kill_switch(self, enabled: bool):
         """Enable or disable the VPN Kill Switch."""
@@ -95,7 +106,7 @@ class VpnEngine:
                 if self._watchdog_id != my_id:
                     break
                 if self.singbox_process and self.singbox_process.poll() is not None:
-                    if not self._user_initiated_disconnect and self._watchdog_id == my_id:
+                    if not self._user_initiated_disconnect and not self._is_rotating and self._watchdog_id == my_id:
                         print(f"[vpn_engine] WARNING: VPN process dropped unexpectedly! (watchdog#{my_id})")
                         if self.kill_switch_enabled:
                             self.kill_switch_blocking = True
@@ -112,8 +123,11 @@ class VpnEngine:
         self.state = state
         if state == STATE_CONNECTED:
             self.connected_time = time.time()
+            if not self._is_rotating:
+                self._last_rotation_time = time.time()
         elif state == STATE_DISCONNECTED:
             self.connected_time = None
+            self._last_rotation_time = None
 
         if self.on_state_change:
             self.on_state_change(state, message)
@@ -346,3 +360,107 @@ class VpnEngine:
         mins = (elapsed % 3600) // 60
         secs = elapsed % 60
         return f"{hrs:02d}:{mins:02d}:{secs:02d}"
+
+    def set_auto_rotate(self, enabled: bool, interval_seconds: int = 300):
+        """Enable or disable dynamic IP rotation."""
+        self.auto_rotate_enabled = enabled
+        self.auto_rotate_interval = max(10, interval_seconds)
+        if enabled and self.state == STATE_CONNECTED:
+            self._last_rotation_time = time.time()
+
+    def get_rotation_countdown_seconds(self) -> int:
+        """Returns remaining seconds until next automatic IP rotation."""
+        if not self.auto_rotate_enabled or self.state != STATE_CONNECTED or not self._last_rotation_time:
+            return 0
+        elapsed = time.time() - self._last_rotation_time
+        return max(0, int(self.auto_rotate_interval - elapsed))
+
+    def get_rotation_countdown_str(self) -> str:
+        """Returns formatted countdown MM:SS or status string."""
+        if not self.auto_rotate_enabled:
+            return "OFF"
+        if self.state != STATE_CONNECTED:
+            return "Ready"
+        if self._is_rotating:
+            return "Rotating..."
+        rem = self.get_rotation_countdown_seconds()
+        mins = rem // 60
+        secs = rem % 60
+        return f"{mins:02d}:{secs:02d}"
+
+    def rotate_to_next_node(self) -> bool:
+        """Seamlessly hops to the next global server in the pool to rotate the IP."""
+        if self.state != STATE_CONNECTED or self._is_rotating:
+            return False
+
+        nodes = fetch_live_nodes()
+        valid_nodes = [n for n in nodes if n.get("uri") and "Auto-Select" not in n.get("name", "")]
+        if not valid_nodes:
+            return False
+
+        other_nodes = [n for n in valid_nodes if n.get("name") != self.connected_node_name]
+        pool = other_nodes if other_nodes else valid_nodes
+
+        curr_idx = -1
+        for idx, n in enumerate(valid_nodes):
+            if n.get("name") == self.connected_node_name:
+                curr_idx = idx
+                break
+        next_idx = (curr_idx + 1) % len(valid_nodes)
+        target_node = valid_nodes[next_idx] if valid_nodes[next_idx].get("name") != self.connected_node_name else pool[0]
+
+        print(f"[vpn_engine] Rotating IP: {self.connected_node_name} -> {target_node['name']}")
+        self._is_rotating = True
+        try:
+            self._set_state(STATE_CONNECTING, f"Rotating IP to {target_node['name']}...")
+            success = self.connect_node(target_node["uri"], target_node["name"])
+            self._is_rotating = False
+            if success:
+                self._last_rotation_time = time.time()
+                if self.on_ip_rotated:
+                    try:
+                        self.on_ip_rotated(target_node["name"])
+                    except Exception:
+                        pass
+                return True
+            else:
+                print("[vpn_engine] Rotation target failed, falling back to smart auto...")
+                recovered = self.connect_smart_auto()
+                if recovered:
+                    self._last_rotation_time = time.time()
+                    if self.on_ip_rotated:
+                        try:
+                            self.on_ip_rotated(self.connected_node_name)
+                        except Exception:
+                            pass
+                    return True
+                return False
+        except Exception as e:
+            self._is_rotating = False
+            print(f"[vpn_engine] Error during IP rotation: {e}")
+            return False
+
+    def _start_rotation_monitor(self):
+        """Background thread that tracks rotation interval and triggers node hopping."""
+        if getattr(self, "_rotation_monitor_started", False):
+            return
+        self._rotation_monitor_started = True
+
+        def _monitor():
+            while True:
+                time.sleep(1.0)
+                try:
+                    if (
+                        self.auto_rotate_enabled
+                        and self.state == STATE_CONNECTED
+                        and not self._is_rotating
+                        and self._last_rotation_time
+                    ):
+                        elapsed = time.time() - self._last_rotation_time
+                        if elapsed >= self.auto_rotate_interval:
+                            print(f"[vpn_engine] Rotation interval ({self.auto_rotate_interval}s) reached. Triggering IP hop...")
+                            threading.Thread(target=self.rotate_to_next_node, daemon=True).start()
+                except Exception as e:
+                    print(f"[vpn_engine] Rotation monitor error: {e}")
+
+        threading.Thread(target=_monitor, daemon=True).start()

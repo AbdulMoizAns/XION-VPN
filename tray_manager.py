@@ -37,6 +37,9 @@ class TrayManager:
         state = self.app.engine.state
         if state == "CONNECTED":
             node = self.app.engine.connected_node_name or "Secure Server"
+            if getattr(self.app.engine, "auto_rotate_enabled", False):
+                cd = self.app.engine.get_rotation_countdown_str()
+                return f"🛡️ Protected ({node}) [🔄 {cd}]"
             return f"🛡️ Protected ({node})"
         elif state == "CONNECTING":
             return "⚡ Connecting..."
@@ -105,7 +108,11 @@ class TrayManager:
         tooltip = "XION VPN"
         if state == "CONNECTED":
             node = self.app.engine.connected_node_name or "Secure Server"
-            tooltip = f"XION VPN - Protected ({node})"
+            if getattr(self.app.engine, "auto_rotate_enabled", False):
+                cd = self.app.engine.get_rotation_countdown_str()
+                tooltip = f"XION VPN - Protected ({node}) [🔄 {cd}]"
+            else:
+                tooltip = f"XION VPN - Protected ({node})"
         elif state == "CONNECTING":
             tooltip = "XION VPN - Connecting..."
         elif state == "ERROR":

@@ -27,6 +27,7 @@
   - **Encrypted DNS-over-HTTPS (DoH):** Direct integration with Cloudflare `1.1.1.1` to hijack and encrypt all DNS requests, preventing ISP logging.
   - **IPv6 Leak Blocker:** Forces strict IPv4 routing to prevent background Windows IPv6 leakage.
   - **Active Watchdog Kill Switch:** Continuously monitors the core tunnel process; instantly severs unencrypted outbound traffic to a dead loopback if the VPN connection ever drops.
+  - **🔄 Auto-Rotate IP (Dynamic Server Hopping):** Automatically cycles between global egress servers at configurable intervals (5, 10, 15, or 30 minutes) with a live countdown timer pill and native desktop change notifications—preventing IP tracking and fingerprinting.
 - 🗕 **Silent System Tray & Background Execution:** Minimizing or closing the window hides the application to the Windows Taskbar Notification Area without interrupting the active tunnel. Includes a dynamic tray context menu with live status, 1-click connect/disconnect, and native notifications.
 - 🚀 **Full-System TUN Mode (All Desktop Apps):** Uses bundled `wintun.dll` to establish a Layer-3 virtual network adapter, ensuring developer tools (OpenCode, VS Code, Git, Terminal, Node, Docker) and desktop software are shielded—not just web browsers.
 - 🌍 **Verified Multi-Country Global Nodes:** Ready-to-connect genuine egress endpoints across 🇺🇸 United States, 🇸🇬 Singapore, 🇯🇵 Japan, 🇩🇪 Germany, 🇫🇷 France, 🇨🇦 Canada, and 🇰🇷 South Korea.
