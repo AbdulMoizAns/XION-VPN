@@ -16,10 +16,10 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
-LicenseFile=LICENSE
-OutputDir=dist
+LicenseFile=..\LICENSE
+OutputDir=..\dist
 OutputBaseFilename=XION-VPN-Setup-v1.0
-SetupIconFile=app_icon.ico
+SetupIconFile=..\src\app_icon.ico
 SolidCompression=yes
 Compression=lzma2/max
 WizardStyle=modern
@@ -35,8 +35,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startmenuicon"; Description: "Create a Start Menu shortcut"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "dist\XION-VPN\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\XION-VPN\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\src\app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app_icon.ico"; Tasks: startmenuicon

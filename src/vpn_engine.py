@@ -34,12 +34,19 @@ def get_bundle_dir() -> str:
 BASE_DIR = get_app_dir()
 BUNDLE_DIR = get_bundle_dir()
 
-# Find sing-box.exe in bundle or next to app exe
-if os.path.isfile(os.path.join(BUNDLE_DIR, "sing-box.exe")):
-    SINGBOX_EXE = os.path.join(BUNDLE_DIR, "sing-box.exe")
-else:
-    SINGBOX_EXE = os.path.join(BASE_DIR, "sing-box.exe")
+def find_singbox_exe() -> str:
+    candidates = [
+        os.path.join(BUNDLE_DIR, "sing-box.exe"),
+        os.path.join(BASE_DIR, "sing-box.exe"),
+        os.path.join(os.path.dirname(BASE_DIR), "sing-box.exe"),
+        os.path.join(BASE_DIR, "src", "sing-box.exe"),
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return os.path.join(BASE_DIR, "sing-box.exe")
 
+SINGBOX_EXE = find_singbox_exe()
 ACTIVE_CONFIG_PATH = os.path.join(BASE_DIR, "active_config.json")
 
 class VpnEngine:

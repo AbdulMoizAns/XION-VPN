@@ -23,6 +23,7 @@ test_*.json
 build/
 dist/
 *.spec
+installer/*.exe
 
 # OS generated files
 Thumbs.db

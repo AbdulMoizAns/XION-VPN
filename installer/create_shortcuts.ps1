@@ -1,10 +1,14 @@
 # create_shortcuts.ps1 - Creates Desktop & Start Menu shortcuts for XION VPN
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ExePath = Join-Path $ScriptDir "dist\XION-VPN\XION-VPN.exe"
-$IconPath = Join-Path $ScriptDir "app_icon.ico"
+$BaseDir = if ((Split-Path -Leaf $ScriptDir).ToLower() -eq "installer") { Split-Path -Parent $ScriptDir } else { $ScriptDir }
+$ExePath = Join-Path $BaseDir "dist\XION-VPN\XION-VPN.exe"
+$IconPath = Join-Path $BaseDir "src\app_icon.ico"
+if (-not (Test-Path $IconPath)) {
+    $IconPath = Join-Path $BaseDir "app_icon.ico"
+}
 
 if (-not (Test-Path $ExePath)) {
-    $ExePath = Join-Path $ScriptDir "run.bat"
+    $ExePath = Join-Path $BaseDir "run.bat"
 }
 
 $WshShell = New-Object -ComObject WScript.Shell

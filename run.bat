@@ -27,7 +27,7 @@ if %errorlevel% == 0 (
 )
 
 echo [*] Launching XION VPN GUI...
-%PYTHON_EXE% "%~dp0main.py"
+%PYTHON_EXE% "%~dp0src\main.py"
 
 if %errorlevel% neq 0 (
     echo.

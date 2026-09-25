@@ -68,7 +68,7 @@ IPv6 Leak: NONE (0%)
 - Python 3.10+ (Bundled virtual environment automatically set up by launcher)
 
 ### Method 1: Professional Windows Setup Wizard (Recommended for Users)
-1. Double-click **`dist/XION-VPN-Setup-v1.0.exe`**
+1. Double-click **`installer/XION-VPN-Setup-v1.0.exe`** (or in `dist/`)
 2. Follow the standard Windows Setup Wizard:
    - Choose install directory (defaults to `C:\Program Files\XION VPN`)
    - ✅ **Create Desktop Shortcut**
@@ -79,16 +79,16 @@ IPv6 Leak: NONE (0%)
 ### Method 2: Portable Standalone Executable (No Installation Required)
 1. Download or extract `dist/XION-VPN-v1.0-Windows-x64.zip`
 2. Run **`XION-VPN.exe`** directly from anywhere (USB drive, Desktop, Downloads).
-3. To add Desktop & Start Menu shortcuts for this portable copy, double-click **`create_shortcuts.bat`**!
+3. To add Desktop & Start Menu shortcuts for this portable copy, double-click **`installer/create_shortcuts.bat`**!
 
 ### Method 3: 1-Click Script Launch (Developer Mode)
 Simply double-click **`run.bat`** in the project root!
 > **Note for Full-System Routing:** Right-click **`XION-VPN.exe`** or **`run.bat`** and choose **"Run as administrator"** (or click the **"⚡ Enable All Apps (TUN)"** button inside the app) to enable Layer-3 adapter routing for OpenCode, VS Code, and terminal software.
 
 ### Method 4: Build .exe & Setup Wizard from Source
-Double-click **`build_installer.bat`** or run:
+Double-click **`installer/build_installer.bat`** or run:
 ```powershell
-.\.venv\Scripts\python.exe build_exe.py
+.\.venv\Scripts\python.exe installer/build_exe.py
 ```
 This automatically bundles the runtime, creates the portable folder and `.zip`, and compiles the Inno Setup Wizard `.exe`.
 
@@ -106,7 +106,7 @@ python -m venv .venv
 pip install -r requirements.txt
 
 # 4. Launch XION VPN
-python main.py
+python src/main.py
 ```
 ---
 
@@ -114,26 +114,38 @@ python main.py
 
 ```
 XION-VPN/
-├── main.py              # Application entry point & crash guard
-├── gui.py               # Widescreen Landscape UI & Canvas Animation Engine
-├── tray_manager.py      # Windows System Tray (Taskbar Notification Area) Controller
-├── vpn_engine.py        # Central tunnel controller, failover & watchdog kill switch
-├── node_manager.py      # Multi-country node pool & sing-box configuration builder
-├── sys_utils.py         # WinINet registry proxy, env proxy & live network telemetry
-├── crypto_tunnel.py     # AES-256-GCM framing for private VPS mode
-├── server.py            # Standalone private server daemon for Linux VPS
-├── tunnel_client.py     # SOCKS5-to-TLS client for custom private VPS
-├── installer.iss        # Inno Setup script for Windows Setup Wizard compiler
-├── app_icon.ico         # Multi-resolution cyberpunk neon app & setup icon
-├── build_exe.py         # Automated PyInstaller & Inno Setup release compiler
-├── build_installer.bat  # 1-Click batch script to compile both .exe and Setup wizard
-├── create_shortcuts.bat # 1-Click launcher to pin Desktop & Start Menu shortcuts
-├── create_shortcuts.ps1 # PowerShell shortcut generation automation
-├── run.bat              # 1-Click launcher with auto-venv & elevation support
-├── wintun.dll           # Layer-3 WireGuard / Wintun network driver
-├── requirements.txt     # Python dependency lockfile
-├── .gitignore           # Git ignore rules for clean repository hygiene
-└── LICENSE              # MIT License
+├── src/                      # ⚡ Core Software & Runtime Assets
+│   ├── main.py               # Application entry point & crash guard
+│   ├── gui.py                # Widescreen Landscape UI & Canvas Animation Engine
+│   ├── tray_manager.py       # Windows System Tray Controller & Context Menu
+│   ├── vpn_engine.py         # Tunnel controller, watchdog kill switch & Clash API
+│   ├── node_manager.py       # Multi-country node pool & sing-box config builder
+│   ├── sys_utils.py          # WinINet proxy, env proxy & live network telemetry
+│   ├── tunnel_client.py      # SOCKS5-to-TLS client for custom private VPS
+│   ├── crypto_tunnel.py      # AES-256-GCM framing for private VPS mode
+│   ├── warp_generator.py     # Cloudflare WARP credential generator
+│   ├── app_icon.ico          # Multi-resolution cyberpunk neon app & setup icon
+│   ├── sing-box.exe          # Bundled Sing-Box v1.14 core binary
+│   └── wintun.dll            # Layer-3 WireGuard / Wintun network driver
+│
+├── installer/                # 📦 Setup Wizard, Installers & Build Pipeline
+│   ├── XION-VPN-Setup-v1.0.exe # Ready-to-run Windows Setup Wizard installer
+│   ├── installer.iss         # Inno Setup compilation script
+│   ├── build_exe.py          # PyInstaller & Inno Setup automated builder
+│   ├── build_installer.bat   # 1-Click batch script to compile executable & installer
+│   ├── create_shortcuts.bat  # 1-Click batch script to create Desktop & Start Menu shortcuts
+│   ├── create_shortcuts.ps1  # PowerShell shortcut automation
+│   └── XION-VPN.spec         # PyInstaller specification file
+│
+├── server/                   # 🌐 Private VPS Server Component
+│   ├── server.py             # Standalone private server daemon for Linux VPS
+│   └── crypto_tunnel.py      # Symmetric AES-256-GCM transport layer
+│
+├── run.bat                   # 🚀 1-Click root launcher (auto-venv & auto-elevation)
+├── requirements.txt          # Python dependency lockfile
+├── README.md                 # Documentation
+├── LICENSE                   # MIT License
+└── .gitignore                # Git ignore rules
 ```
 
 ---

@@ -8,7 +8,9 @@ import subprocess
 import sys
 import zipfile
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INSTALLER_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.abspath(os.path.join(INSTALLER_DIR, "..")) if os.path.basename(INSTALLER_DIR).lower() == "installer" else INSTALLER_DIR
+SRC_DIR = os.path.join(BASE_DIR, "src")
 DIST_DIR = os.path.join(BASE_DIR, "dist")
 BUILD_DIR = os.path.join(BASE_DIR, "build")
 OUTPUT_APP_DIR = os.path.join(DIST_DIR, "XION-VPN")
@@ -19,8 +21,17 @@ def build():
     print("=" * 60)
 
     # 1. Verify required bundled files exist
-    singbox_src = os.path.join(BASE_DIR, "sing-box.exe")
-    wintun_src = os.path.join(BASE_DIR, "wintun.dll")
+    singbox_src = os.path.join(SRC_DIR, "sing-box.exe")
+    if not os.path.isfile(singbox_src):
+        singbox_src = os.path.join(BASE_DIR, "sing-box.exe")
+
+    wintun_src = os.path.join(SRC_DIR, "wintun.dll")
+    if not os.path.isfile(wintun_src):
+        wintun_src = os.path.join(BASE_DIR, "wintun.dll")
+
+    icon_src = os.path.join(SRC_DIR, "app_icon.ico")
+    if not os.path.isfile(icon_src):
+        icon_src = os.path.join(BASE_DIR, "app_icon.ico")
 
     if not os.path.isfile(singbox_src):
         print(f"[-] ERROR: {singbox_src} not found!")
@@ -35,13 +46,18 @@ def build():
     if not os.path.isfile(pyinstaller_exe):
         pyinstaller_exe = "pyinstaller"
 
-    icon_src = os.path.join(BASE_DIR, "app_icon.ico")
+    entrypoint = os.path.join(SRC_DIR, "main.py")
+    if not os.path.isfile(entrypoint):
+        entrypoint = os.path.join(BASE_DIR, "main.py")
+
     cmd = [
         pyinstaller_exe,
         "--noconfirm",
         "--onedir",
         "--windowed",
         "--name=XION-VPN",
+        f"--specpath={INSTALLER_DIR}",
+        f"--paths={SRC_DIR}",
         "--collect-all=customtkinter",
         "--collect-all=pystray",
         "--hidden-import=pystray",
@@ -53,7 +69,7 @@ def build():
         cmd.append(f"--icon={icon_src}")
         cmd.append(f"--add-data={icon_src};.")
 
-    cmd.append(os.path.join(BASE_DIR, "main.py"))
+    cmd.append(entrypoint)
 
     print(f"[*] Running PyInstaller...")
     res = subprocess.run(cmd, cwd=BASE_DIR)
@@ -105,13 +121,21 @@ def build():
         r"C:\Program Files\Inno Setup 6\ISCC.exe",
     ]
     iscc_exe = next((p for p in iscc_candidates if p and os.path.isfile(p)), None)
-    iss_file = os.path.join(BASE_DIR, "installer.iss")
+    iss_file = os.path.join(INSTALLER_DIR, "installer.iss")
+    if not os.path.isfile(iss_file):
+        iss_file = os.path.join(BASE_DIR, "installer.iss")
 
     if iscc_exe and os.path.isfile(iss_file):
         print(f"[*] Compiling Inno Setup Wizard using {iscc_exe}...")
         iscc_res = subprocess.run([iscc_exe, iss_file], cwd=BASE_DIR)
         if iscc_res.returncode == 0:
             setup_exe_path = os.path.join(DIST_DIR, "XION-VPN-Setup-v1.0.exe")
+            # Also copy directly to installer/ folder for convenient 1-click access
+            installer_dest = os.path.join(INSTALLER_DIR, "XION-VPN-Setup-v1.0.exe")
+            try:
+                shutil.copy2(setup_exe_path, installer_dest)
+            except Exception:
+                pass
 
     print("=" * 60)
     print(" [+] BUILD SUCCESSFUL!")

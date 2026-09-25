@@ -6,10 +6,11 @@ echo ========================================================
 echo          XION VPN STANDALONE BUILD PIPELINE
 echo ========================================================
 
-set PYTHON_EXE="%~dp0.venv\Scripts\python.exe"
+set PYTHON_EXE="%~dp0..\.venv\Scripts\python.exe"
+if not exist %PYTHON_EXE% set PYTHON_EXE="%~dp0.venv\Scripts\python.exe"
 
 if not exist %PYTHON_EXE% (
-    echo [-] Python virtual environment not found. Please run run.bat first.
+    echo [-] Python virtual environment not found. Please run run.bat first in the project root.
     pause
     exit /b 1
 )
@@ -33,5 +34,9 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [*] Opening dist folder...
-start explorer "%~dp0dist"
+if exist "%~dp0..\dist" (
+    start explorer "%~dp0..\dist"
+) else (
+    start explorer "%~dp0"
+)
 pause
