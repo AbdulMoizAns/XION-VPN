@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gui import XionVpnApp
 
 def main():
-    app = XionVpnApp()
+    start_minimized = "--minimized" in sys.argv
+    app = XionVpnApp(start_minimized=start_minimized)
     app.protocol("WM_DELETE_WINDOW", app.on_close)
     app.mainloop()
 

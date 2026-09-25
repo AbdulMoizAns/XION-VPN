@@ -10,7 +10,9 @@ import time
 import requests
 from sys_utils import set_windows_system_proxy, set_env_proxy, is_admin
 from tunnel_client import XionTunnelClient
-from node_manager import parse_vless_uri, build_singbox_config, fetch_live_nodes, BUILTIN_FAST_NODES
+from node_manager import parse_vless_uri, build_singbox_config, fetch_live_nodes, BUILTIN_FAST_NODES, get_fastest_node
+from settings_manager import settings_mgr
+from sound_effects import play_connect, play_disconnect, play_rotate, play_alert
 
 STATE_DISCONNECTED = "DISCONNECTED"
 STATE_CONNECTING = "CONNECTING"
@@ -133,9 +135,16 @@ class VpnEngine:
             self.connected_time = time.time()
             if not self._is_rotating:
                 self._last_rotation_time = time.time()
+            play_connect()
+            if self.connected_node_name:
+                settings_mgr.set("preferred_node", self.connected_node_name)
         elif state == STATE_DISCONNECTED:
             self.connected_time = None
             self._last_rotation_time = None
+            if not self.kill_switch_blocking:
+                play_disconnect()
+        elif state == STATE_ERROR and self.kill_switch_blocking:
+            play_alert()
 
         if self.on_state_change:
             self.on_state_change(state, message)
@@ -145,6 +154,12 @@ class VpnEngine:
         if not os.path.isfile(SINGBOX_EXE):
             self._set_state(STATE_ERROR, "sing-box.exe not found in app directory.")
             return False
+
+        # If user chose Smart Connect / Auto, automatically pick lowest ping node
+        if "Smart Connect" in node_name or "Auto-Select" in node_name:
+            fastest = get_fastest_node()
+            uri = fastest.get("uri", uri)
+            node_name = fastest.get("name", node_name)
 
         outbound = parse_vless_uri(uri)
         if not outbound:
@@ -417,6 +432,7 @@ class VpnEngine:
             r = s.put("http://127.0.0.1:9090/proxies/proxy-out", json={"name": tag}, timeout=2.0)
             if r.status_code in (200, 204):
                 print(f"[vpn_engine] Hot-switched successfully to {node_name} ({tag})")
+                play_rotate()
                 self.connected_node_name = node_name
                 self._last_rotation_time = time.time()
                 admin = self.is_tun_active

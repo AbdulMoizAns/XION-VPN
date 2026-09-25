@@ -1,24 +1,31 @@
 """
 node_manager.py - Global Server & Protocol Manager for XION VPN
-Provides verified multi-country nodes (USA, Singapore, Japan, Germany, France, Canada, South Korea)
-and supports both Full-System TUN Mode (OpenCode, VSCode, Games) and System Proxy Mode.
+Provides verified multi-country nodes (USA, Singapore, Japan, Germany, France, Canada, South Korea),
+Split Tunneling (Process Exclusions), Double VPN (Multi-Hop), DNS Ad-Blocker,
+Concurrent Ping/Latency Matrix, and Smart Connect.
 """
+
 import base64
+import concurrent.futures
 import json
 import os
 import re
+import socket
+import time
 import urllib.parse
 import requests
+
+from settings_manager import settings_mgr
 
 # 100% Tested & Verified multi-country nodes with REAL distinct multi-IP egress nodes
 BUILTIN_FAST_NODES = [
     {
-        "tag": "node-sg-1",
-        "name": "⚡ Auto-Select (Fastest Route)",
-        "country": "Singapore",
-        "country_code": "SG",
-        "city": "Singapore",
-        "uri": "vless://cb15cce9-73ed-4928-b38c-462f0732cbe9@217.217.254.126:2053?fp=firefox&pbk=VzRjuHwcY-nLqkEIJS4S1CpButKc90Bh0gDbphyZ0Tw&security=reality&sid=87829de0e2bb82cb&sni=www.cloudflare.com&type=tcp#vless-1260285702"
+        "tag": "node-auto",
+        "name": "⚡ Smart Connect (Fastest Server)",
+        "country": "Auto",
+        "country_code": "AUTO",
+        "city": "Lowest Latency",
+        "uri": "vless://cb15cce9-73ed-4928-b38c-462f0732cbe9@217.217.254.126:2053?fp=firefox&pbk=VzRjuHwcY-nLqkEIJS4S1CpButKc90Bh0gDbphyZ0Tw&security=reality&sid=87829de0e2bb82cb&sni=www.cloudflare.com&type=tcp#auto-fast"
     },
     {
         "tag": "node-sg-1",
@@ -110,6 +117,9 @@ BUILTIN_FAST_NODES = [
     }
 ]
 
+# Cache for real-time node pings
+_PING_CACHE = {}
+
 def parse_vless_uri(uri: str, tag: str = "proxy-out") -> dict | None:
     """Parses a vless:// URI into a sing-box outbound dictionary with a custom tag."""
     try:
@@ -167,19 +177,108 @@ def parse_vless_uri(uri: str, tag: str = "proxy-out") -> dict | None:
         print(f"[node_manager] Failed to parse URI: {e}")
         return None
 
+def ping_node(node: dict, timeout: float = 2.0) -> int:
+    """Measures TCP handshake latency to a node's endpoint in milliseconds."""
+    uri = node.get("uri", "")
+    if not uri or node.get("country_code") == "AUTO":
+        return 999
+    try:
+        parsed = urllib.parse.urlparse(uri)
+        host = parsed.hostname
+        port = parsed.port or 443
+        if not host:
+            return 999
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        start = time.perf_counter()
+        s.connect((host, port))
+        end = time.perf_counter()
+        s.close()
+        ms = max(1, int((end - start) * 1000))
+        _PING_CACHE[node.get("tag")] = ms
+        return ms
+    except Exception:
+        _PING_CACHE[node.get("tag")] = 999
+        return 999
+
+def update_all_node_pings() -> dict:
+    """Updates latency measurements concurrently across all nodes."""
+    nodes_to_ping = [n for n in BUILTIN_FAST_NODES if n.get("country_code") != "AUTO"]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(ping_node, n): n for n in nodes_to_ping}
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()
+            except Exception:
+                pass
+    return dict(_PING_CACHE)
+
+def get_cached_ping(node_tag: str) -> int | None:
+    return _PING_CACHE.get(node_tag)
+
+def get_fastest_node() -> dict:
+    """Returns the verified node with the lowest latency ping."""
+    best_node = None
+    min_ping = 99999
+    for n in BUILTIN_FAST_NODES:
+        if n.get("country_code") == "AUTO":
+            continue
+        p = _PING_CACHE.get(n.get("tag"), 999)
+        if p < min_ping:
+            min_ping = p
+            best_node = n
+
+    return best_node or BUILTIN_FAST_NODES[1] # fallback to SG 1
+
 def fetch_live_nodes() -> list[dict]:
-    """Returns the verified multi-country node pool."""
+    """Returns the verified multi-country node pool plus any user imported custom nodes."""
+    custom_nodes = settings_mgr.get("custom_nodes", [])
+    if isinstance(custom_nodes, list) and custom_nodes:
+        return BUILTIN_FAST_NODES + custom_nodes
     return BUILTIN_FAST_NODES
 
-def build_singbox_config(outbound: dict = None, local_port: int = 10808, enable_tun: bool = False, multi_nodes: list[dict] = None, default_tag: str = None) -> dict:
+def import_custom_vless(uri: str, name: str = None) -> dict | None:
+    """Parses and validates a user custom VLESS link and persists it."""
+    outbound = parse_vless_uri(uri, tag=f"custom-{int(time.time())}")
+    if not outbound:
+        return None
+
+    node_data = {
+        "tag": outbound["tag"],
+        "name": name or f"🌐 Custom ({outbound['server']})",
+        "country": "Custom",
+        "country_code": "CS",
+        "city": outbound["server"],
+        "uri": uri
+    }
+
+    custom_nodes = settings_mgr.get("custom_nodes", [])
+    if not isinstance(custom_nodes, list):
+        custom_nodes = []
+    custom_nodes.append(node_data)
+    settings_mgr.set("custom_nodes", custom_nodes)
+    return node_data
+
+def build_singbox_config(outbound: dict = None, local_port: int = 10808, enable_tun: bool = False,
+                         multi_nodes: list[dict] = None, default_tag: str = None) -> dict:
     """
-    Generates complete sing-box configuration.
-    If multi_nodes is provided, configures a 'selector' outbound named 'proxy-out'
-    and enables the local Clash API (127.0.0.1:9090) for zero-downtime hot-switching.
-    If enable_tun=True (Administrator mode):
-      Creates a Wintun Layer-3 virtual network adapter, routing ALL apps (OpenCode, VSCode, games, system).
-    Always includes a mixed SOCKS5/HTTP inbound at local_port.
+    Generates complete sing-box configuration incorporating:
+    - Ad-Blocker & Malware Shield (DNS level filtering)
+    - Split Tunneling (Process & Application Exclusions)
+    - Double VPN (Multi-Hop Outbound Detour)
+    - Clash API (Zero-downtime hot-switching)
+    - Layer-3 TUN mode & System Proxy Inbounds
     """
+    # Read user preferences from settings
+    ad_blocker = settings_mgr.get("ad_blocker", True)
+    malware_shield = settings_mgr.get("malware_shield", True)
+    split_enabled = settings_mgr.get("split_tunneling_enabled", False)
+    split_apps = settings_mgr.get("split_tunnel_apps", [])
+    double_vpn_enabled = settings_mgr.get("double_vpn_enabled", False)
+    double_vpn_entry = settings_mgr.get("double_vpn_entry", "node-sg-1")
+    double_vpn_exit = settings_mgr.get("double_vpn_exit", "node-de-1")
+
     inbounds = [
         {
             "type": "mixed",
@@ -200,17 +299,57 @@ def build_singbox_config(outbound: dict = None, local_port: int = 10808, enable_
             "stack": "system"
         })
 
+    # DNS configuration: AdGuard / Cloudflare Security filtering
+    if ad_blocker:
+        # AdGuard DNS blocks ads, trackers, analytics at DNS level
+        remote_dns = {
+            "tag": "dns-remote",
+            "type": "https",
+            "server": "94.140.14.14"
+        }
+    elif malware_shield:
+        # Cloudflare 1.1.1.2 blocks known malware / phishing
+        remote_dns = {
+            "tag": "dns-remote",
+            "type": "https",
+            "server": "1.1.1.2"
+        }
+    else:
+        # Standard ultra-fast Cloudflare DoH
+        remote_dns = {
+            "tag": "dns-remote",
+            "type": "https",
+            "server": "1.1.1.1"
+        }
+
+    # Route rules
+    rules = [
+        {
+            "protocol": "dns",
+            "action": "hijack-dns"
+        },
+        {
+            "ip_is_private": True,
+            "outbound": "direct-out"
+        }
+    ]
+
+    # Split Tunneling: Exclude selected processes from VPN routing
+    if split_enabled and split_apps:
+        sanitized_apps = [os.path.basename(a.strip().lower()) for a in split_apps if a.strip()]
+        if sanitized_apps:
+            rules.insert(1, {
+                "process_name": sanitized_apps,
+                "outbound": "direct-out"
+            })
+
     config = {
         "log": {
             "level": "warn"
         },
         "dns": {
             "servers": [
-                {
-                    "tag": "dns-remote",
-                    "type": "https",
-                    "server": "1.1.1.1"
-                },
+                remote_dns,
                 {
                     "tag": "dns-direct",
                     "type": "udp",
@@ -223,16 +362,7 @@ def build_singbox_config(outbound: dict = None, local_port: int = 10808, enable_
         "route": {
             "default_domain_resolver": "dns-direct",
             "auto_detect_interface": True,
-            "rules": [
-                {
-                    "protocol": "dns",
-                    "action": "hijack-dns"
-                },
-                {
-                    "ip_is_private": True,
-                    "outbound": "direct-out"
-                }
-            ],
+            "rules": rules,
             "final": "proxy-out"
         }
     }
@@ -246,12 +376,31 @@ def build_singbox_config(outbound: dict = None, local_port: int = 10808, enable_
         }
         node_outbounds = []
         node_tags = []
+        node_map = {}
+
         for n in multi_nodes:
+            if n.get("country_code") == "AUTO":
+                continue
             tag = n.get("tag") or n.get("name")
             ob = parse_vless_uri(n["uri"], tag=tag)
             if ob:
                 node_outbounds.append(ob)
                 node_tags.append(tag)
+                node_map[tag] = ob
+
+        # Double VPN (Multi-Hop) chaining support
+        if double_vpn_enabled and double_vpn_entry in node_map and double_vpn_exit in node_map and double_vpn_entry != double_vpn_exit:
+            # Entry node connects directly; Exit node detours through Entry node!
+            entry_ob = dict(node_map[double_vpn_entry])
+            entry_ob["tag"] = "hop-entry-out"
+
+            exit_ob = dict(node_map[double_vpn_exit])
+            exit_ob["tag"] = "hop-exit-out"
+            exit_ob["detour"] = "hop-entry-out"
+
+            node_outbounds.extend([entry_ob, exit_ob])
+            node_tags.insert(0, "hop-exit-out")
+            default_tag = "hop-exit-out"
 
         selector_outbound = {
             "type": "selector",

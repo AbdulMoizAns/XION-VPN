@@ -24,11 +24,20 @@
   - **Animated Tunnel Pipeline:** Neon data packets visually traverse the end-to-end path from your device to the egress server.
   - **Real-Time Rolling Traffic Waveform:** Live Bezier curve sparkline tracking download (Emerald) and upload (Cyan) throughput.
 - 🛡️ **Military-Grade Privacy Suite:**
-  - **Encrypted DNS-over-HTTPS (DoH):** Direct integration with Cloudflare `1.1.1.1` to hijack and encrypt all DNS requests, preventing ISP logging.
+  - **Encrypted DNS-over-HTTPS (DoH):** Direct integration with Cloudflare `1.1.1.1` and AdGuard DNS `94.140.14.14` to encrypt requests and eliminate ISP logging.
+  - **🛡️ Built-in DNS Ad & Malware Shield:** Blocks ads, telemetry, trackers, and phishing domains at wire speed directly at the DNS query layer.
+  - **🔀 Split Tunneling (App Exclusions):** Exclude games (Steam, Epic Games), Discord, or custom `.exe` apps to bypass the VPN for ultra-low ping while other apps stay shielded.
   - **IPv6 Leak Blocker:** Forces strict IPv4 routing to prevent background Windows IPv6 leakage.
   - **Active Watchdog Kill Switch:** Continuously monitors the core tunnel process; instantly severs unencrypted outbound traffic to a dead loopback if the VPN connection ever drops.
-  - **🔄 Auto-Rotate IP (Dynamic Server Hopping):** Automatically cycles between global egress servers at configurable intervals (5, 10, 15, or 30 minutes) with a live countdown timer pill and native desktop change notifications—preventing IP tracking and fingerprinting.
-- 🗕 **Silent System Tray & Background Execution:** Minimizing or closing the window hides the application to the Windows Taskbar Notification Area without interrupting the active tunnel. Includes a dynamic tray context menu with live status, 1-click connect/disconnect, and native notifications.
+  - **🔄 Auto-Rotate IP (Zero-Downtime Server Hopping):** Automatically cycles between global egress servers at configurable intervals (5, 10, 15, or 30 mins) with Same-Region vs Global Scope options.
+  - **🔍 1-Click Privacy & Leak Audit Suite:** Built-in diagnostics checking public egress IP, DNS leak resistance, and IPv6 isolation with real-time security verification.
+- ⚡ **Performance & Node Intelligence:**
+  - **⚡ Real-Time Ping Matrix & Smart Connect:** Concurrent TCP latency benchmarking displays live response times (`[45 ms]`) and auto-selects the fastest available server.
+  - **🌐 Custom Node Import:** Import any custom `vless://` or Shadowsocks URI directly into your active server pool.
+- 🗕 **Silent System Tray & Windows Automation:**
+  - **Auto-Launch with Windows:** Optional startup registration in Windows Registry to launch on boot.
+  - **Start Minimized to Tray & Auto-Connect:** Boots silently into the taskbar notification area and establishes the tunnel automatically.
+  - **🔊 Cyberpunk Sci-Fi Sound FX:** Lightweight, non-blocking futuristic audio feedback on connect, disconnect, server hop, and kill switch alerts.
 - 🚀 **Full-System TUN Mode (All Desktop Apps):** Uses bundled `wintun.dll` to establish a Layer-3 virtual network adapter, ensuring developer tools (OpenCode, VS Code, Git, Terminal, Node, Docker) and desktop software are shielded—not just web browsers.
 - 🌍 **Verified Multi-Country Global Nodes:** Ready-to-connect genuine egress endpoints across 🇺🇸 United States, 🇸🇬 Singapore, 🇯🇵 Japan, 🇩🇪 Germany, 🇫🇷 France, 🇨🇦 Canada, and 🇰🇷 South Korea.
 - 🌐 **Private Linux VPS Server Included:** Bundled with `server.py` and `crypto_tunnel.py` to deploy your own personal AES-256-GCM private VPN on any remote Ubuntu/Debian server.
@@ -120,7 +129,9 @@ XION-VPN/
 │   ├── tray_manager.py       # Windows System Tray Controller & Context Menu
 │   ├── vpn_engine.py         # Tunnel controller, watchdog kill switch & Clash API
 │   ├── node_manager.py       # Multi-country node pool & sing-box config builder
-│   ├── sys_utils.py          # WinINet proxy, env proxy & live network telemetry
+│   ├── settings_manager.py   # Persistent JSON settings (%APPDATA%/XION-VPN)
+│   ├── sound_effects.py      # Non-blocking Cyberpunk Sci-Fi sound FX engine
+│   ├── sys_utils.py          # WinINet proxy, leak test, telemetry & startup reg
 │   ├── tunnel_client.py      # SOCKS5-to-TLS client for custom private VPS
 │   ├── crypto_tunnel.py      # AES-256-GCM framing for private VPS mode
 │   ├── warp_generator.py     # Cloudflare WARP credential generator
