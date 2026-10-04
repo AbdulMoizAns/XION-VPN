@@ -21,7 +21,11 @@ def is_admin() -> bool:
         return False
 
 def restart_as_admin():
-    """Restarts current application with Administrator privileges via UAC prompt."""
+    """
+    Launches a new elevated (Administrator) instance of the application via UAC.
+    Returns True if the elevated process was launched, False if already admin.
+    NOTE: Does NOT call sys.exit() — the caller is responsible for cleanup.
+    """
     import sys
     if not is_admin():
         if getattr(sys, "frozen", False):
@@ -31,7 +35,8 @@ def restart_as_admin():
             # Running as Python script
             script = os.path.abspath(sys.argv[0])
             ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, f'"{script}"', None, 1)
-        sys.exit(0)
+        return True
+    return False
 
 def set_env_proxy(enable: bool, host: str = "127.0.0.1", port: int = 10808):
     """

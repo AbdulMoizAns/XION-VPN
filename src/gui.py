@@ -270,7 +270,7 @@ class XionVpnApp(ctk.CTk):
                 text_color="#FDE68A",
                 corner_radius=6,
                 height=24,
-                command=restart_as_admin
+                command=self._elevate_and_close
             )
             elevate_btn.pack(anchor="w", pady=(3, 0))
 
@@ -1226,7 +1226,19 @@ class XionVpnApp(ctk.CTk):
     def toggle_connection_from_tray(self):
         self._toggle_connection()
 
+    def _elevate_and_close(self):
+        """
+        UAC elevation handler — launches new elevated process FIRST,
+        then cleanly destroys this window. This prevents the old window
+        from freezing in 'Not Responding' state.
+        """
+        launched = restart_as_admin()
+        if launched:
+            # Small delay so the new process has time to start
+            self.after(300, self.quit_application)
+
     def quit_application(self):
+
         self._is_running = False
         if self.engine.state in (STATE_CONNECTED, STATE_CONNECTING):
             self.engine.disconnect()
